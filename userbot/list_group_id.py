@@ -10,6 +10,16 @@ GROUPS = {
         'username': 'ss',
         "link": "sds"
 
+    },
+    -1001854398226: {
+        "name": "ВСЕ ОБЪЯВЛЕНИЯ КРАСНОДАРА",
+        "username": "vse_obyavleniya_krasnodara23",
+        "link": "https://t.me/vse_obyavleniya_krasnodara23"
+    },
+    -1002647897800: {
+        "name": "Объявления | Барахолка | Краснодар",
+        "username": "krasnodar_chatru",
+        "link": "https://t.me/krasnodar_chatru"
     }
 }
 

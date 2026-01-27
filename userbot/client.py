@@ -1,4 +1,7 @@
+from msilib.text import dirname
+
 from pyrogram import Client
+from telethon import TelegramClient, events
 import os
 from dotenv import load_dotenv
 
@@ -14,3 +17,5 @@ app = Client(
     api_hash=API_HASH,
     workdir="sessions"
 )
+
+# client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
