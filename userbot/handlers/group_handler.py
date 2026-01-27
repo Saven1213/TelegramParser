@@ -14,90 +14,23 @@ from userbot.client import app
 
 
 from userbot.list_group_id import GROUPS, get_channel_info
+from userbot.utils.post_sender import send_post_to_channel
 
 logger = logging.getLogger(__name__)
 
 
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
-
-
-
-
-# class AlbumCollector:
-#     """Собирает части альбомов и обрабатывает целиком"""
-#
-#     def __init__(self, wait_time: int = 5):
-#         self.wait_time = wait_time  # секунд ожидания
-#         self.albums: dict = defaultdict(list)  # media_group_id -> список сообщений
-#         self.lock = asyncio.Lock()
-#
-#     async def add_message(self, message):
-#         """Добавляет сообщение в альбом"""
-#         async with self.lock:
-#             media_group_id = message.media_group_id
-#             self.albums[media_group_id].append(message)
-#
-#             # Запускаем обработку через wait_time секунд
-#             asyncio.create_task(self._process_album_after_delay(media_group_id))
-#
-#     async def _process_album_after_delay(self, media_group_id):
-#         """Обрабатывает альбом после задержки"""
-#         await asyncio.sleep(self.wait_time)
-#
-#         async with self.lock:
-#             if media_group_id not in self.albums:
-#                 return
-#
-#             messages = self.albums.pop(media_group_id)
-#             await self._process_full_album(messages)
-#
-#     async def _process_full_album(self, messages):
-#         """Обрабатывает собранный альбом"""
-#         if not messages:
-#             return
-#
-#
-#         messages.sort(key=lambda m: m.id)
-#
-#
-#         first_msg = messages[0]
-#         caption = first_msg.caption or ""
-#
-#
-#         photos = []
-#         videos = []
-#         documents = []
-#
-#         for msg in messages:
-#             if msg.photo:
-#                 photos.append(msg.photo)
-#             elif msg.video:
-#                 videos.append(msg.video)
-#             elif msg.document:
-#                 documents.append(msg.document)
-#
-#
-#         print(f"\n📦 СОБРАН АЛЬБОМ ({len(messages)} частей):")
-#         print(f"   media_group_id: {first_msg.media_group_id}")
-#         print(f"   Подпись: {caption[:100]}..." if caption else "   Без подписи")
-#         print(f"   Фото: {len(photos)} шт")
-#         print(f"   Видео: {len(videos)} шт")
-#         print(f"   Документы: {len(documents)} шт")
-#
-#         # TODO: Здесь будет сохранение в БД
+chat_id = int(os.getenv("MAIN_CHAT"))
 
 group_ids = list(GROUPS.keys())
 groups_filter = filters.chat(group_ids)
 
 
-
-
-# @app.on_message(groups_filter)
-# async def debug_all(client, message):
-#     print("DEBUG:", message.chat.id, message.chat.type, message.text)
-
-albums_cache = {}  # media_group_id -> {"messages": [], "first_msg_date": datetime}
+albums_cache = {}
 
 async def save_album_after_delay(media_group_id, msg_link, delay=1):
     await asyncio.sleep(delay)
@@ -106,7 +39,7 @@ async def save_album_after_delay(media_group_id, msg_link, delay=1):
     if not cache:
         return
 
-    # собираем media
+
     media_list = []
     for msg in cache["messages"]:
         if msg.photo:
@@ -130,7 +63,9 @@ async def save_album_after_delay(media_group_id, msg_link, delay=1):
     print(post_data)
     await create_post(**post_data)
 
-    # очищаем кеш
+    await send_post_to_channel(app, chat_id, post_data)
+
+
     del albums_cache[media_group_id]
 
 
@@ -147,9 +82,6 @@ async def handle_group_message(client, message: Message):
         if message.from_user:
             logger.info(f"   Автор: {message.from_user.id}")
 
-        # -------------------------------
-        # 1) Сбор данных
-        # -------------------------------
         text = None
         media_list = []
 
@@ -159,9 +91,7 @@ async def handle_group_message(client, message: Message):
         if message.text and not text:
             text = message.text
 
-        # -------------------------------
-        # 2) Альбом
-        # -------------------------------
+
         if message.media_group_id:
             if message.media_group_id not in albums_cache:
                 albums_cache[message.media_group_id] = {
@@ -227,6 +157,7 @@ async def handle_group_message(client, message: Message):
 
 
             await create_post(**post_data)
+            await send_post_to_channel(app, chat_id, post_data)
 
         print("-" * 50)
 
@@ -237,4 +168,4 @@ async def handle_group_message(client, message: Message):
         print("ошибка, но тоже сработало")
 
 
-logger.info(f"✅ Групповой хэндлер настроен для {len(GROUPS)} групп")
+
