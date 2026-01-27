@@ -1,32 +1,10 @@
 import asyncio
 
 
-from pyrogram import Client
-
-
-import os
-from dotenv import load_dotenv
+from userbot.client import app
 
 from db.models import create_session
-
-load_dotenv()
-
-
-API_ID = int(os.getenv('API_ID'))
-API_HASH = str(os.getenv("API_HASH"))
-SESSION_NAME = str(os.getenv("SESSION_NAME"))
-
-
-app = Client(
-    name=SESSION_NAME,
-    api_id=API_ID,
-    api_hash=API_HASH,
-    workdir="sessions"
-)
-
-
-
-
+from userbot.list_group_id import GROUPS
 
 
 async def main():
@@ -35,6 +13,13 @@ async def main():
     await app.start()
 
     await create_session()
+
+    for group_id in GROUPS.keys():
+        try:
+            chat = await app.get_chat(group_id)
+            print(f"   ✅ {chat.title} (ID: {group_id})")
+        except Exception as e:
+            print(f"   ❌ Ошибка группы {group_id}: {e}")
 
     await idle()
 

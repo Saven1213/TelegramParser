@@ -1,12 +1,12 @@
 from sqlalchemy import String, Integer, Boolean, Float, DateTime
 from sqlalchemy.orm import DeclarativeBase,Mapped, mapped_column
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, async_session
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from typing import Optional
 from datetime import datetime
 
 engine = create_async_engine(url='sqlite+aiosqlite:///tg_parser.db')
 
-session = async_sessionmaker(engine)
+async_session = async_sessionmaker(engine)
 
 class Base(DeclarativeBase):
     pass
