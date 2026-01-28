@@ -72,21 +72,42 @@ async def save_album_after_delay(media_group_id, msg_link, delay=1):
 
 
 
-
-
-
-
 @app.on_message(groups_filter)
 async def handle_group_message(client, message: Message):
     try:
-        if message.chat.username:
-            msg_link = f"https://t.me/{message.chat.username}/{message.id}"
-        else:
-            msg_link = f"https://t.me/c/{str(abs(message.chat.id))}/{message.id}"
 
+        is_forum = message.chat.is_forum
+        topic_id = message.message_thread_id
+
+
+        if message.chat.username:
+
+            if is_forum and topic_id:
+                msg_link = (
+                    f"https://t.me/{message.chat.username}/"
+                    f"{topic_id}/{message.id}"
+                )
+            else:
+                msg_link = f"https://t.me/{message.chat.username}/{message.id}"
+
+        else:
+
+            chat_id_abs = str(abs(message.chat.id))
+
+            if is_forum and topic_id:
+                msg_link = (
+                    f"https://t.me/c/{chat_id_abs}/"
+                    f"{topic_id}/{message.id}"
+                )
+            else:
+                msg_link = f"https://t.me/c/{chat_id_abs}/{message.id}"
+
+        # ----------------------------
         print(f"   ID сообщения: {message.id}")
         print(f"   Дата: {message.date}")
-        print(f"   Ссылка на сообщение {msg_link}")
+        print(f"   Форум: {is_forum}")
+        print(f"   Topic ID: {topic_id}")
+        print(f"   Ссылка: {msg_link}")
 
         if message.from_user:
             logger.info(f"   Автор: {message.from_user.id}")
@@ -110,50 +131,37 @@ async def handle_group_message(client, message: Message):
 
             albums_cache[message.media_group_id]["messages"].append(message)
 
-
             if not albums_cache[message.media_group_id]["saving"]:
                 albums_cache[message.media_group_id]["saving"] = True
                 asyncio.create_task(
-                    save_album_after_delay(message.media_group_id, msg_link, delay=3)
+                    save_album_after_delay(
+                        message.media_group_id,
+                        msg_link,
+                        delay=3
+                    )
                 )
 
 
         elif message.photo:
-            print(f"   Тип: ФОТО")
-            print(f"   file_id: {message.photo.file_id}")
-            if message.caption:
-                print(f"   Подпись: {message.caption[:100]}...")
-
             media_list = [message.photo.file_id]
 
         elif message.video:
-            print(f"   Тип: ВИДЕО")
-            print(f"   file_id: {message.video.file_id}")
-            print(f"   Длительность: {message.video.duration} сек")
-            if message.caption:
-                print(f"   Подпись: {message.caption[:100]}...")
-
             media_list = [message.video.file_id]
 
         elif message.document:
-            print(f"   Тип: ДОКУМЕНТ")
-            print(f"   Имя файла: {message.document.file_name}")
-            print(f"   MIME тип: {message.document.mime_type}")
-
             media_list = [message.document.file_id]
 
         elif message.text:
-            print(f"   Тип: ТЕКСТ")
-            print(f"   Текст: {message.text[:100]}...")
             media_list = []
 
         else:
-            print(f"   Тип: ДРУГОЙ (не обрабатывается)")
+            print("   Тип не поддерживается")
 
 
         if not message.media_group_id:
             media_str = ",".join(media_list) if media_list else None
             text = text or ""
+
             post_data = {
                 "text": text,
                 "media": media_str,
@@ -162,7 +170,6 @@ async def handle_group_message(client, message: Message):
                 "is_published": True
             }
 
-
             await create_post(**post_data)
             await send_post_to_channel(app, chat_id, post_data)
 
@@ -170,9 +177,109 @@ async def handle_group_message(client, message: Message):
 
     except Exception as e:
         error_msg = f"Ошибка обработки сообщения {message.id}: {e}"
-        await create_log('error', error_msg)
+        await create_log("error", error_msg)
         print(error_msg)
-        print("ошибка, но тоже сработало")
+
+
+
+
+# @app.on_message(groups_filter)
+# async def handle_group_message(client, message: Message):
+#     try:
+#         if message.chat.username:
+#             msg_link = f"https://t.me/{message.chat.username}/{message.id}"
+#         else:
+#             msg_link = f"https://t.me/c/{str(abs(message.chat.id))}/{message.id}"
+#
+#         print(f"   ID сообщения: {message.id}")
+#         print(f"   Дата: {message.date}")
+#         print(f"   Ссылка на сообщение {msg_link}")
+#
+#         if message.from_user:
+#             logger.info(f"   Автор: {message.from_user.id}")
+#
+#         text = None
+#         media_list = []
+#
+#         if message.caption:
+#             text = message.caption
+#
+#         if message.text and not text:
+#             text = message.text
+#
+#
+#         if message.media_group_id:
+#             if message.media_group_id not in albums_cache:
+#                 albums_cache[message.media_group_id] = {
+#                     "messages": [],
+#                     "saving": False
+#                 }
+#
+#             albums_cache[message.media_group_id]["messages"].append(message)
+#
+#
+#             if not albums_cache[message.media_group_id]["saving"]:
+#                 albums_cache[message.media_group_id]["saving"] = True
+#                 asyncio.create_task(
+#                     save_album_after_delay(message.media_group_id, msg_link, delay=3)
+#                 )
+#
+#
+#         elif message.photo:
+#             print(f"   Тип: ФОТО")
+#             print(f"   file_id: {message.photo.file_id}")
+#             if message.caption:
+#                 print(f"   Подпись: {message.caption[:100]}...")
+#
+#             media_list = [message.photo.file_id]
+#
+#         elif message.video:
+#             print(f"   Тип: ВИДЕО")
+#             print(f"   file_id: {message.video.file_id}")
+#             print(f"   Длительность: {message.video.duration} сек")
+#             if message.caption:
+#                 print(f"   Подпись: {message.caption[:100]}...")
+#
+#             media_list = [message.video.file_id]
+#
+#         elif message.document:
+#             print(f"   Тип: ДОКУМЕНТ")
+#             print(f"   Имя файла: {message.document.file_name}")
+#             print(f"   MIME тип: {message.document.mime_type}")
+#
+#             media_list = [message.document.file_id]
+#
+#         elif message.text:
+#             print(f"   Тип: ТЕКСТ")
+#             print(f"   Текст: {message.text[:100]}...")
+#             media_list = []
+#
+#         else:
+#             print(f"   Тип: ДРУГОЙ (не обрабатывается)")
+#
+#
+#         if not message.media_group_id:
+#             media_str = ",".join(media_list) if media_list else None
+#             text = text or ""
+#             post_data = {
+#                 "text": text,
+#                 "media": media_str,
+#                 "source_url": msg_link,
+#                 "published_at": datetime.now(),
+#                 "is_published": True
+#             }
+#
+#
+#             await create_post(**post_data)
+#             await send_post_to_channel(app, chat_id, post_data)
+#
+#         print("-" * 50)
+#
+#     except Exception as e:
+#         error_msg = f"Ошибка обработки сообщения {message.id}: {e}"
+#         await create_log('error', error_msg)
+#         print(error_msg)
+#         print("ошибка, но тоже сработало")
 
 
 

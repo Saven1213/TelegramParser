@@ -22,16 +22,21 @@ from userbot.client import app
 group_ids = list(GROUPS.keys())
 
 
-def main():
+async def main():
 
-    app.start()
+    await app.start()
     print("Userbot started")
 
-    asyncio.get_event_loop().run_until_complete(create_session())
 
-    asyncio.get_event_loop().run_forever()
+    await create_session()
+    print("DB initialized")
 
+
+    await idle()
+
+
+    await app.stop()
+    print("Userbot stopped")
 
 if __name__ == "__main__":
-    main()
-
+    asyncio.run(main())

@@ -36,11 +36,6 @@ GROUPS = {
         "username": "sosedi_samolet_krd",
         "link": "https://t.me/sosedi_samolet_krd",
     },
-    -1001633826572: {
-        "name": "Питупи Чат",
-        "username": "mediap2p_chat",
-        "link": "https://t.me/mediap2p_chat"
-    },
     -1001234567890: {
         "name": "Краснодар Чат",
         "username": "krasnodar_krd_chat",
