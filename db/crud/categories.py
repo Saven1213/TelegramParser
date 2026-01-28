@@ -17,3 +17,26 @@ async def get_categories():
         print(category_data)
 
         return category_data
+
+async def save_category(name: str, keywords: str):
+    async with async_session() as session:
+        cat = Category(
+            name=name,
+            keywords=keywords
+        )
+
+        session.add(cat)
+
+        await session.commit()
+
+async def get_category_by_id(category_id: int):
+    async with async_session() as session:
+        result = await session.execute(select(Category).where(Category.id == category_id))
+        return result.scalar_one_or_none()
+
+async def delete_category_from_db(category_id: int):
+    async with async_session() as session:
+        category = await session.get(Category, category_id)
+        if category:
+            await session.delete(category)
+            await session.commit()

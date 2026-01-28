@@ -69,11 +69,20 @@ async def save_album_after_delay(media_group_id, msg_link, delay=1):
     del albums_cache[media_group_id]
 
 
+
+
+
+
+
+
+
 @app.on_message(groups_filter)
 async def handle_group_message(client, message: Message):
     try:
-        msg_link = f"https://t.me/{message.chat.username}/{message.id}"
-
+        if message.chat.username:
+            msg_link = f"https://t.me/{message.chat.username}/{message.id}"
+        else:
+            msg_link = f"https://t.me/c/{str(abs(message.chat.id))}/{message.id}"
 
         print(f"   ID сообщения: {message.id}")
         print(f"   Дата: {message.date}")
@@ -141,9 +150,7 @@ async def handle_group_message(client, message: Message):
         else:
             print(f"   Тип: ДРУГОЙ (не обрабатывается)")
 
-        # -------------------------------
-        # 4) Вставка в БД (для всех типов кроме альбома)
-        # -------------------------------
+
         if not message.media_group_id:
             media_str = ",".join(media_list) if media_list else None
             text = text or ""
@@ -167,5 +174,12 @@ async def handle_group_message(client, message: Message):
         print(error_msg)
         print("ошибка, но тоже сработало")
 
+
+
+
+# @app.on_message(filters.all)
+# async def kskd(client, message: Message):
+#     if message.chat.id in groups_filter:
+#         print(f"Сообщение из {message.chat.username}, {message.text}")
 
 

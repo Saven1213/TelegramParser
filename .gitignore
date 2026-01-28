@@ -1,3 +1,4 @@
 .env
 tg_parser.db
 sessions/
+bot/config.py

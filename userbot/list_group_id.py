@@ -20,6 +20,32 @@ GROUPS = {
         "name": "Объявления | Барахолка | Краснодар",
         "username": "krasnodar_chatru",
         "link": "https://t.me/krasnodar_chatru"
+    },
+    -1001263253104: {
+        "name": "Краснодар Объявления Реклама",
+        "username": "krasnodarskayareklama",
+        "link": "https://t.me/krasnodarskayareklama"
+    },
+    -1002370374751: {
+        "name": "Барахолка | ЖК Самолет | Краснодар ",
+        "username": "baraholka_samolet_ZO",
+        "link": "https://t.me/baraholka_samolet_ZO"
+    },
+    -1001922970337: {
+        "name": "ЖК Самолёт Краснодар | Соседи",
+        "username": "sosedi_samolet_krd",
+        "link": "https://t.me/sosedi_samolet_krd",
+    },
+    -1001633826572: {
+        "name": "Питупи Чат",
+        "username": "mediap2p_chat",
+        "link": "https://t.me/mediap2p_chat"
+    },
+    -1001234567890: {
+        "name": "Краснодар Чат",
+        "username": "krasnodar_krd_chat",
+        "link": "https://t.me/krasnodar_krd_chat",
+        "allowed_topics": [10790, 10797, 10795, 10800, 10804, 20189, 10802, 10806, 10816, 10812, 10814, 10808, 10810, 19177, 16785]
     }
 }
 
@@ -40,13 +66,12 @@ SUPERGROUPS_WITH_TOPICS = {
 }
 
 SUPERGROUPS = {
-    # Пример:
-    # -1001234567891: {
-    #     "name": "Обычный канал",
-    #     "username": "simple_channel",
-    #     "link": "https://t.me/simple_channel",
-    #     "has_topics": False
-    # }
+    -1001234567890: {
+        "name": "Краснодар Чат",
+        "username": "krasnodar_krd_chat",
+        "link": "https://t.me/krasnodar_krd_chat",
+        "allowed_topics": [10790, 10797, 10795, 10800, 10804, 20189, 10802, 10806, 10816, 10812, 10814, 10808, 10810, 19177, 16785]
+    }
 }
 
 ALL_CHANNELS = {**GROUPS, **SUPERGROUPS_WITH_TOPICS, **SUPERGROUPS}
