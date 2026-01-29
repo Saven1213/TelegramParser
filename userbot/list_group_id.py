@@ -5,7 +5,7 @@ GROUPS = {
         "link": "https://t.me/krasnodar_ads"
     },
 
-    -5058839083: {
+    -1003730216520: {
         "name": "Тестовая",
         'username': 'ss',
         "link": "sds"

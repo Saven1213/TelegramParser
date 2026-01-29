@@ -26,7 +26,11 @@ def main():
 
     app.start()
     print("Userbot started")
-
+    # history = []
+    # for msg in app.get_chat_history(-1002370374751, limit=10):
+    #     history.append(msg.caption)
+    #
+    # print(history)
     asyncio.get_event_loop().run_until_complete(create_session())
 
     asyncio.get_event_loop().run_forever()
