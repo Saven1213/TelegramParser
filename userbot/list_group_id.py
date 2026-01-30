@@ -36,7 +36,7 @@ GROUPS = {
         "username": "sosedi_samolet_krd",
         "link": "https://t.me/sosedi_samolet_krd",
     },
-    -1001234567890: {
+    -1002596577488: {
         "name": "Краснодар Чат",
         "username": "krasnodar_krd_chat",
         "link": "https://t.me/krasnodar_krd_chat",

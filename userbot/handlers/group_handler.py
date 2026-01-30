@@ -11,10 +11,17 @@ from datetime import datetime, timedelta
 
 from db.crud.post import create_post
 from userbot.client import app
-
+from userbot.config import STOP_WORDS
 
 from userbot.list_group_id import GROUPS, get_channel_info
-from userbot.utils.post_sender import send_post_to_channel
+from userbot.utils.error_proccesing import error
+from userbot.utils.post_sender import send_post_to_channel, send_post_channel
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+error_chat = int(os.getenv("ERROR_CHAT"))
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +40,42 @@ groups_filter = filters.chat(group_ids)
 albums_cache = {}
 
 async def save_album_after_delay(media_group_id, msg_link, delay=1):
+    await asyncio.sleep(delay)
+
+    cache = albums_cache.get(media_group_id)
+    if not cache:
+        return
+
+    media_files = []
+    text = ""
+
+    for i, msg in enumerate(cache["messages"]):
+
+        if i == 0:
+            text = msg.caption or msg.text or ""
+            text += f'\n\n<a href="{msg_link}">Источник</a>'
+
+        file = await msg.download(in_memory=True)
+
+        media_files.append({
+            "type": (
+                "photo" if msg.photo else
+                "video" if msg.video else
+                "document"
+            ),
+            "file": file
+        })
+
+    post_data = {
+        "text": text,
+        "media": media_files
+    }
+
+    await send_post_channel(app, chat_id, post_data)
+
+    del albums_cache[media_group_id]
+
+async def save_album_delay(media_group_id, msg_link, delay=1):
     await asyncio.sleep(delay)
 
     cache = albums_cache.get(media_group_id)
@@ -60,7 +103,7 @@ async def save_album_after_delay(media_group_id, msg_link, delay=1):
         "is_published": True
     }
 
-    print(post_data)
+
     await create_post(**post_data)
 
     await send_post_to_channel(app, chat_id, post_data)
@@ -182,41 +225,47 @@ async def save_album_after_delay(media_group_id, msg_link, delay=1):
 #         print(error_msg)
 
 @app.on_message(groups_filter)
-async def test(client, message: Message):
-
+async def parse_handler(client, message: Message):
     try:
 
-
+        print("=" * 50)
+        print(f"Message ID: {message.id}")
+        print("Raw message object:")
+        print(message)  # Полный объект PyroFork / Pyrogram
+        print("Attributes available in message:")
+        print(dir(message))
+        print("=" * 50)
         is_forum = message.chat.is_forum
         topic_id = message.message_thread_id
 
         if message.chat.username:
             if is_forum and topic_id:
-                msg_link = (
-                    f"https://t.me/{message.chat.username}/"
-                    f"{topic_id}/{message.id}"
-                )
+                msg_link = f"https://t.me/{message.chat.username}/{topic_id}/{message.id}"
             else:
                 msg_link = f"https://t.me/{message.chat.username}/{message.id}"
         else:
-            chat_id_abs = str(abs(message.chat.id))
+            chat_id_abs = abs(message.chat.id)
             if is_forum and topic_id:
-                msg_link = (
-                    f"https://t.me/c/{chat_id_abs}/"
-                    f"{topic_id}/{message.id}"
-                )
+                msg_link = f"https://t.me/c/{chat_id_abs}/{topic_id}/{message.id}"
             else:
                 msg_link = f"https://t.me/c/{chat_id_abs}/{message.id}"
 
 
 
-        text = None
+        text = (
+            message.caption.html
+            if message.caption
+            else message.text.html
+            if message.text
+            else ""
+        )
 
-        if message.caption:
-            text = message.caption.html
+        if text and any(word in text.lower() for word in STOP_WORDS):
+            print(f"⛔ сообщение отфильтровано стоп-словами")
+            return
 
-        elif message.text:
-            text = message.text.html
+        if text:
+            text += f'\n\n<a href="{msg_link}">Источник</a>'
 
 
 
@@ -245,53 +294,53 @@ async def test(client, message: Message):
 
 
 
-
         if message.photo:
             file = await message.download(in_memory=True)
-
             await app.send_photo(
                 chat_id=chat_id,
                 photo=file,
                 caption=text
             )
+            return
 
-
-        elif message.video:
+        if message.video:
             file = await message.download(in_memory=True)
-
             await app.send_video(
                 chat_id=chat_id,
                 video=file,
                 caption=text
             )
+            return
 
-
-        elif message.document:
+        if message.document:
             file = await message.download(in_memory=True)
-
             await app.send_document(
                 chat_id=chat_id,
                 document=file,
                 caption=text
             )
+            return
 
 
 
-        elif text:
+        if text:
             await app.send_message(
                 chat_id=chat_id,
                 text=text
             )
+            return
 
-        else:
-            print("❌ неподдерживаемый тип сообщения")
 
-        print(f"✅ Спарсили сообщение {message.id}")
-        print(f"🔗 {msg_link}")
-        print("-" * 50)
+
+        await error(
+            f"❌ неподдерживаемый тип сообщения\n\n<a href='{msg_link}'>Сообщение</a>",
+            error_chat
+        )
 
     except Exception as e:
-        print(f"❌ Ошибка {message.id}: {e}")
+        await error(str(e), error_chat)
+
+
 
 
 

@@ -76,6 +76,50 @@ async def send_post_to_channel(client: app, chat_id: int, post_data: dict):
 
     except Exception as e:
         print("SEND ERROR:", e)
-        message = 'Ошибка постинга'
-        await create_log('error', message)
-        await app.send_message(chat_id=error_chat, message=message)
+        msg_error = 'Ошибка постинга'
+        await create_log('error', msg_error)
+        await app.send_message(chat_id=error_chat, text=msg_error)
+
+async def send_post_channel(client, chat_id, post_data):
+
+    text = post_data.get("text", "")
+    media = post_data.get("media", [])
+
+
+    if not media:
+        await client.send_message(chat_id, text)
+        return
+
+
+    if len(media) == 1:
+        m = media[0]
+
+        if m["type"] == "photo":
+            await client.send_photo(chat_id, m["file"], caption=text)
+
+        elif m["type"] == "video":
+            await client.send_video(chat_id, m["file"], caption=text)
+
+        elif m["type"] == "document":
+            await client.send_document(chat_id, m["file"], caption=text)
+
+        return
+
+
+    group = []
+
+    for i, m in enumerate(media):
+
+        caption = text if i == 0 else None
+
+        if m["type"] == "photo":
+            group.append(InputMediaPhoto(m["file"], caption=caption))
+
+        elif m["type"] == "video":
+            group.append(InputMediaVideo(m["file"], caption=caption))
+
+        elif m["type"] == "document":
+            group.append(InputMediaDocument(m["file"], caption=caption))
+
+    await client.send_media_group(chat_id, group)
+
