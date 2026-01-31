@@ -40,3 +40,21 @@ async def delete_category_from_db(category_id: int):
         if category:
             await session.delete(category)
             await session.commit()
+
+async def update_category_keywords(
+    category_id: int,
+    keywords: str
+) -> None:
+    async with async_session() as session:
+
+        result = await session.execute(
+            select(Category).where(Category.id == category_id)
+        )
+        category = result.scalar_one_or_none()
+
+        if not category:
+            raise ValueError(f"Category with id={category_id} not found")
+
+        category.keywords = keywords
+
+        await session.commit()

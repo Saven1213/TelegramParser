@@ -16,7 +16,7 @@ def detect_category(text: str, categories: list) -> str:
 
     for cat in categories:
         for kw in cat["keywords"]:
-            if kw in text:
+            if kw.lower() in text:
                 return cat["name"]
 
     return "Другое"
@@ -82,17 +82,59 @@ async def send_post_to_channel(client: app, chat_id: int, post_data: dict):
 
 async def send_post_channel(client, chat_id, post_data):
 
-    text = post_data.get("text", "")
+    print("\n" + "=" * 40)
+    print("📤 send_post_channel CALLED")
+
+    text = post_data.get("text", "") or ""
     media = post_data.get("media", [])
 
+    print(f"📝 post_data.text len={len(text)}")
+    print(f"📦 media count={len(media)}")
 
+    # ---------- caption fallback ----------
+    if not text and media:
+        print("⚠️ text empty, searching caption in media")
+        for i, m in enumerate(media):
+            caption = m.get("caption")
+            print(f"   media[{i}] caption={'YES' if caption else 'NO'}")
+            if caption:
+                text = caption
+                print(f"✅ caption FOUND len={len(text)}")
+                break
+
+    print(f"🧾 FINAL text len={len(text)}")
+    print(f"🧾 FINAL text preview:\n{text[:300]}")
+
+    # ---------- categories ----------
+    categories = await get_categories()
+    print(f"📚 categories count={len(categories)}")
+
+    # покажем первые 3 категории
+    for c in categories[:3]:
+        print(
+            f"   ▶ category id={c.id} name={c.name} "
+            f"keywords_len={len(c.keywords or '')}"
+        )
+
+    # ---------- detect ----------
+    category = detect_category(text, categories)
+    print(f"🏷 detect_category RESULT = {category}")
+
+    if category != "Другое":
+        text = f"<b>[{category}]</b>\n\n" + text
+        print("✅ category prepended to text")
+    else:
+        print("⚠️ category == 'Другое', NOT prepended")
+
+    # ---------- SEND ----------
     if not media:
+        print("📤 sending TEXT message")
         await client.send_message(chat_id, text)
         return
 
-
     if len(media) == 1:
         m = media[0]
+        print(f"📤 sending SINGLE media type={m['type']}")
 
         if m["type"] == "photo":
             await client.send_photo(chat_id, m["file"], caption=text)
@@ -105,12 +147,12 @@ async def send_post_channel(client, chat_id, post_data):
 
         return
 
-
+    print("📤 sending MEDIA GROUP")
     group = []
 
     for i, m in enumerate(media):
-
         caption = text if i == 0 else None
+        print(f"   media[{i}] type={m['type']} caption={'YES' if caption else 'NO'}")
 
         if m["type"] == "photo":
             group.append(InputMediaPhoto(m["file"], caption=caption))
@@ -122,4 +164,9 @@ async def send_post_channel(client, chat_id, post_data):
             group.append(InputMediaDocument(m["file"], caption=caption))
 
     await client.send_media_group(chat_id, group)
+
+    print("✅ send_post_channel DONE")
+    print("=" * 40)
+
+
 

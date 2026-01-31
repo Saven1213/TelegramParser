@@ -6,7 +6,8 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
 from bot.config import tg_id_list
-from db.crud.categories import save_category, get_category_by_id, get_categories, delete_category_from_db
+from db.crud.categories import save_category, get_category_by_id, get_categories, delete_category_from_db, \
+    update_category_keywords
 
 router = Router()
 
@@ -19,8 +20,7 @@ async def start(message: Message):
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text='➕ Добавить категорию', callback_data='add_category'),
-                    InlineKeyboardButton(text='Удалить категорию', callback_data='delete_category')
+                    InlineKeyboardButton(text='Категории', callback_data='categories')
                 ]
             ]
         )
@@ -30,15 +30,15 @@ async def start(message: Message):
             reply_markup=keyboard)
 
 @router.callback_query(F.data == 'main')
-async def menu(callback: CallbackQuery):
+async def menu(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     tg_id = callback.from_user.id
 
     if tg_id in tg_id_list:
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text='➕ Добавить категорию', callback_data='add_category'),
-                    InlineKeyboardButton(text='Удалить категорию', callback_data='delete_category')
+                    InlineKeyboardButton(text='Категории', callback_data='categories')
                 ]
             ]
         )
@@ -58,6 +58,24 @@ async def add_category(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("📝 Введите название категории:")
     await callback.answer()
 
+
+@router.callback_query(F.data == 'categories')
+async def categories(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text='➕ Добавить категорию', callback_data='add_category'),
+                InlineKeyboardButton(text='Удалить категорию', callback_data='delete_category')
+            ],
+            [
+                InlineKeyboardButton(text='Изменить категорию', callback_data='change_category')
+            ]
+        ]
+    )
+
+    text = "Выберите действие"
+
+    await callback.message.edit_text(text=text, reply_markup=keyboard)
 
 @router.message(AddCategory.name)
 async def process_category_name(message: Message, state: FSMContext):
@@ -93,6 +111,99 @@ async def process_category_keywords(message: Message, state: FSMContext):
     await state.clear()
 
 
+@router.callback_query(F.data == 'change_category')
+async def change_category(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+
+    category_list = await get_categories()
+
+    for category in category_list:
+        keyboard.inline_keyboard.append(
+            [
+                InlineKeyboardButton(text=category.get('name', 'category'), callback_data=f'category_change-{category.get("id", 0)}')
+            ]
+        )
+    keyboard.inline_keyboard.append(
+        [
+            InlineKeyboardButton(text='🏠 В главное меню', callback_data='main')
+        ]
+    )
+
+    await callback.message.edit_text(text='Выберите категорию которой хотите добавить ключевые слова: ', reply_markup=keyboard)
+
+class NewKeywords(StatesGroup):
+    keywords = State()
+
+@router.callback_query(F.data.split('-')[0] == 'category_change')
+async def new_keywords(callback: CallbackQuery, state: FSMContext):
+    data = int(callback.data.split('-')[1])
+
+    category = await get_category_by_id(data)
+    print(category, '\n\n', category.id, category.keywords)
+
+    await state.update_data(
+        old_keywords=str(category.keywords or ""),
+        category_id=int(category.id)
+    )
+
+    await state.set_state(NewKeywords.keywords)
+
+    await callback.message.edit_text('Введите новые ключевые слова через запятую без пробелов: ')
+
+@router.message(NewKeywords.keywords)
+async def new_keywords(message: Message, state: FSMContext):
+
+    data = await state.get_data()
+    old_keywords_raw = data.get("old_keywords", "")
+    print(old_keywords_raw)
+
+    # 2️⃣ новые ключевые слова от пользователя
+    new_keywords_raw = message.text.strip()
+
+    # защита от пустого ввода
+    if not new_keywords_raw:
+        await message.answer("❌ Ключевые слова не могут быть пустыми")
+        return
+
+    # 3️⃣ превращаем в списки
+    old_keywords = [
+        k.strip().lower()
+        for k in old_keywords_raw.split(",")
+        if k.strip()
+    ]
+    print('\n\nold_keywords', old_keywords)
+
+    new_keywords = [
+        k.strip().lower()
+        for k in new_keywords_raw.split(",")
+        if k.strip()
+    ]
+
+    # 4️⃣ объединяем без дубликатов
+    merged_keywords = sorted(set(old_keywords + new_keywords))
+
+    # 5️⃣ обратно в строку
+    result_keywords = ",".join(merged_keywords)
+
+
+    category_id = data.get("category_id")
+
+    await update_category_keywords(
+        category_id=category_id,
+        keywords=result_keywords
+    )
+
+
+    await state.clear()
+
+    await message.answer(
+        "✅ Ключевые слова обновлены:\n\n"
+        f"<code>{result_keywords}</code>"
+    )
+
+
+
+
 class DeleteCategory(StatesGroup):
     confirm = State()
 
@@ -114,7 +225,7 @@ async def delete_category_start(callback: CallbackQuery, state: FSMContext):
             callback_data=f"delete_{category['id']}"
         )])
 
-    buttons.append([InlineKeyboardButton(text="❌ Отмена", callback_data="cancel")])
+    buttons.append([InlineKeyboardButton(text="❌ Отмена", callback_data="main")])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 

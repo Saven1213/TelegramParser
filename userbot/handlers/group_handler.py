@@ -2,6 +2,7 @@
 from pyrogram import filters
 from pyrogram.types import Message
 
+from db.crud.categories import get_categories
 from db.crud.log import create_log
 
 import logging
@@ -15,7 +16,7 @@ from userbot.config import STOP_WORDS
 
 from userbot.list_group_id import GROUPS, get_channel_info
 from userbot.utils.error_proccesing import error
-from userbot.utils.post_sender import send_post_to_channel, send_post_channel
+from userbot.utils.post_sender import send_post_to_channel, send_post_channel, detect_category
 import os
 from dotenv import load_dotenv
 
@@ -39,7 +40,23 @@ groups_filter = filters.chat(group_ids)
 
 albums_cache = {}
 
-async def save_album_after_delay(media_group_id, msg_link, delay=1):
+
+def extract_text(message: Message) -> str:
+    caption = message.caption.html if message.caption and message.caption.html else message.caption
+    text = message.text.html if message.text and message.text.html else message.text
+
+    print(  #ЛОГ
+        f"🧾 extract_text | msg_id={message.id} | "
+        f"caption={'YES' if caption else 'NO'} | "
+        f"text={'YES' if text else 'NO'}"
+    )
+
+    return caption or text or ""
+
+
+
+
+async def save_album_after_delay(media_group_id, msg_link, delay=1): #Устаревшая функция
     await asyncio.sleep(delay)
 
     cache = albums_cache.get(media_group_id)
@@ -75,41 +92,95 @@ async def save_album_after_delay(media_group_id, msg_link, delay=1):
 
     del albums_cache[media_group_id]
 
-async def save_album_delay(media_group_id, msg_link, delay=1):
+from pyrogram.types import (
+    InputMediaPhoto,
+    InputMediaVideo,
+    InputMediaDocument
+)
+
+async def save_album_delay(media_group_id, msg_link, delay=3):
     await asyncio.sleep(delay)
 
     cache = albums_cache.get(media_group_id)
     if not cache:
         return
 
+    print("\n" + "=" * 40)
+    print(f"📚 SAVE ALBUM {media_group_id}")
+    print(f"📦 messages count = {len(cache['messages'])}")
 
-    media_list = []
+    media = []
+    text = ""
+
+
     for msg in cache["messages"]:
+        candidate_text = extract_text(msg)
+        print(
+            f"🧾 extract_text | msg_id={msg.id} | "
+            f"caption={'YES' if msg.caption else 'NO'} | "
+            f"text={'YES' if msg.text else 'NO'}"
+        )
+        if candidate_text:
+            text = candidate_text
+            print(f"📝 album TEXT FOUND len={len(text)}")
+            break
+
+
+    if text and any(word in text.lower() for word in STOP_WORDS):
+        print("⛔ album filtered by STOP_WORDS")
+        del albums_cache[media_group_id]
+        return
+
+
+    print(f"🧠 text before category:\n{text[:300]}")
+
+    categories = await get_categories()
+    print(f"📚 categories loaded = {len(categories)}")
+
+    category = detect_category(text, categories)
+    print(f"🏷 detect_category RESULT = {category}")
+
+    if category != "Другое":
+        text = f"<b>[{category}]</b>\n\n" + text
+        print("✅ category prepended")
+
+
+    if text:
+        text += f'\n\n<a href="{msg_link}">Источник</a>'
+
+    print(f"🧾 FINAL caption len={len(text)}")
+
+
+    for idx, msg in enumerate(cache["messages"]):
+        caption = text if idx == 0 else None
+
         if msg.photo:
-            media_list.append(msg.photo.file_id)
-        if msg.video:
-            media_list.append(msg.video.file_id)
-        if msg.document:
-            media_list.append(msg.document.file_id)
+            file = await msg.download(in_memory=True)
+            media.append(InputMediaPhoto(file, caption=caption))
+            print(f"📸 add PHOTO idx={idx} caption={'YES' if caption else 'NO'}")
 
-    media_str = ",".join(media_list)
-    text = cache["messages"][0].caption or cache["messages"][0].text or ""
+        elif msg.video:
+            file = await msg.download(in_memory=True)
+            media.append(InputMediaVideo(file, caption=caption))
+            print(f"🎥 add VIDEO idx={idx} caption={'YES' if caption else 'NO'}")
 
-    post_data = {
-        "text": text,
-        "media": media_str,
-        "source_url": msg_link,
-        "published_at": datetime.now(),
-        "is_published": True
-    }
+        elif msg.document:
+            file = await msg.download(in_memory=True)
+            media.append(InputMediaDocument(file, caption=caption))
+            print(f"📄 add DOC idx={idx} caption={'YES' if caption else 'NO'}")
 
 
-    await create_post(**post_data)
-
-    await send_post_to_channel(app, chat_id, post_data)
-
+    if media:
+        await app.send_media_group(chat_id=chat_id, media=media)
+        print("🚀 MEDIA GROUP SENT")
 
     del albums_cache[media_group_id]
+    print(f"✅ album {media_group_id} DONE")
+    print("=" * 40)
+
+
+
+
 
 
 
@@ -227,118 +298,129 @@ async def save_album_delay(media_group_id, msg_link, delay=1):
 @app.on_message(groups_filter)
 async def parse_handler(client, message: Message):
     try:
+        print("\n================ NEW MESSAGE ================") # ЛОГ
+        print(f"📩 msg_id={message.id}")
+        print(f"📦 media_group_id={message.media_group_id}")
+        print(f"🖼 photo={bool(message.photo)} video={bool(message.video)} doc={bool(message.document)}")
+        print(f"📝 caption={bool(message.caption)} text={bool(message.text)}")
 
-        print("=" * 50)
-        print(f"Message ID: {message.id}")
-        print("Raw message object:")
-        print(message)  # Полный объект PyroFork / Pyrogram
-        print("Attributes available in message:")
-        print(dir(message))
-        print("=" * 50)
         is_forum = message.chat.is_forum
         topic_id = message.message_thread_id
 
+        # -------- ссылка --------
         if message.chat.username:
-            if is_forum and topic_id:
-                msg_link = f"https://t.me/{message.chat.username}/{topic_id}/{message.id}"
-            else:
-                msg_link = f"https://t.me/{message.chat.username}/{message.id}"
+            msg_link = (
+                f"https://t.me/{message.chat.username}/{topic_id}/{message.id}"
+                if is_forum and topic_id
+                else f"https://t.me/{message.chat.username}/{message.id}"
+            )
         else:
             chat_id_abs = abs(message.chat.id)
-            if is_forum and topic_id:
-                msg_link = f"https://t.me/c/{chat_id_abs}/{topic_id}/{message.id}"
-            else:
-                msg_link = f"https://t.me/c/{chat_id_abs}/{message.id}"
+            msg_link = (
+                f"https://t.me/c/{chat_id_abs}/{topic_id}/{message.id}"
+                if is_forum and topic_id
+                else f"https://t.me/c/{chat_id_abs}/{message.id}"
+            )
 
+        print(f"🔗 link={msg_link}") # ЛОГ
 
-
-        text = (
-            message.caption.html
-            if message.caption
-            else message.text.html
-            if message.text
-            else ""
-        )
-
-        if text and any(word in text.lower() for word in STOP_WORDS):
-            print(f"⛔ сообщение отфильтровано стоп-словами")
-            return
-
-        if text:
-            text += f'\n\n<a href="{msg_link}">Источник</a>'
-
-
-
+        # -------- MEDIA GROUP --------
         if message.media_group_id:
+            print("📚 MESSAGE IS PART OF MEDIA GROUP") # ЛОГ
 
             if message.media_group_id not in albums_cache:
+                print("🆕 new album created") # ЛОГ
                 albums_cache[message.media_group_id] = {
                     "messages": [],
                     "saving": False
                 }
 
             albums_cache[message.media_group_id]["messages"].append(message)
+            print(  # ЛОГ
+                f"➕ added to album | total={len(albums_cache[message.media_group_id]['messages'])}"
+            )
 
             if not albums_cache[message.media_group_id]["saving"]:
+                print("⏳ scheduling album save")
                 albums_cache[message.media_group_id]["saving"] = True
-
                 asyncio.create_task(
-                    save_album_after_delay(
+                    save_album_delay(
                         message.media_group_id,
                         msg_link,
                         delay=3
                     )
                 )
-
             return
 
+        # -------- ОДИНОЧНОЕ --------
+        print("📄 SINGLE MESSAGE") # ЛОГ
 
+        text = extract_text(message)
+        print(f"📝 extracted_text_len={len(text)}") # ЛОГ
+
+        categories = await get_categories()
+        print(f"📚 categories loaded = {len(categories)}")
+
+        category = detect_category(text, categories)
+        print(f"🏷 detect_category RESULT = {category}")
+
+        if category != "Другое":
+            text = f"<b>[{category}]</b>\n\n" + text
+            print("✅ category prepended (single)")
+
+        if text and any(word in text.lower() for word in STOP_WORDS):
+            print("⛔ STOP WORD MATCH (single message)")     # ЛОГ
+            return
+
+        text += f'\n\n<a href="{msg_link}">Источник</a>'
 
         if message.photo:
+            print("🚀 send PHOTO")   # ЛОГ
             file = await message.download(in_memory=True)
-            await app.send_photo(
-                chat_id=chat_id,
-                photo=file,
-                caption=text
-            )
+
+            await app.send_photo(chat_id=chat_id, photo=file, caption=text)
             return
 
         if message.video:
+            print("🚀 send VIDEO")   # ЛОГ
             file = await message.download(in_memory=True)
-            await app.send_video(
-                chat_id=chat_id,
-                video=file,
-                caption=text
-            )
+            await app.send_video(chat_id=chat_id, video=file, caption=text)
             return
 
         if message.document:
+            print("🚀 send DOCUMENT")    # ЛОГ
             file = await message.download(in_memory=True)
-            await app.send_document(
-                chat_id=chat_id,
-                document=file,
-                caption=text
-            )
+            await app.send_document(chat_id=chat_id, document=file, caption=text)
             return
-
-
 
         if text:
-            await app.send_message(
-                chat_id=chat_id,
-                text=text
-            )
+            print("🚀 send TEXT")    # ЛОГ
+            await app.send_message(chat_id=chat_id, text=text)
             return
 
-
-
+        print("⚠️ FALLBACK triggered")  # ЛОГ
         await error(
             f"❌ неподдерживаемый тип сообщения\n\n<a href='{msg_link}'>Сообщение</a>",
             error_chat
         )
 
     except Exception as e:
+        print("🔥 EXCEPTION:", e)
         await error(str(e), error_chat)
+
+
+
+# @app.on_message([-1002370374751])
+# async def test(client, message: Message):
+#     print("=" * 50)
+#     print(f"Message ID: {message.id}")
+#     print("Raw message object:")
+#     print(message)
+#     print("Attributes available in message:")
+#     print(dir(message))
+#     print("=" * 50)
+#     print(message.text)
+
 
 
 
