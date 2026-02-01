@@ -3,6 +3,7 @@ from pyrogram import filters
 from pyrogram.types import Message
 
 from db.crud.categories import get_categories
+from db.crud.groups import get_group_ids
 from db.crud.log import create_log
 
 import logging
@@ -14,7 +15,7 @@ from db.crud.post import create_post
 from userbot.client import app
 from userbot.config import STOP_WORDS
 
-from userbot.list_group_id import GROUPS, get_channel_info
+from userbot.list_group_id import GROUPS
 from userbot.utils.error_proccesing import error
 from userbot.utils.post_sender import send_post_to_channel, send_post_channel, detect_category
 import os
@@ -134,15 +135,15 @@ async def save_album_delay(media_group_id, msg_link, delay=3):
 
     print(f"🧠 text before category:\n{text[:300]}")
 
-    categories = await get_categories()
-    print(f"📚 categories loaded = {len(categories)}")
-
-    category = detect_category(text, categories)
-    print(f"🏷 detect_category RESULT = {category}")
-
-    if category != "Другое":
-        text = f"<b>[{category}]</b>\n\n" + text
-        print("✅ category prepended")
+    # categories = await get_categories()
+    # print(f"📚 categories loaded = {len(categories)}")
+    #
+    # category = detect_category(text, categories)
+    # print(f"🏷 detect_category RESULT = {category}")
+    #
+    # if category != "Другое":
+    #     text = f"<b>[{category}]</b>\n\n" + text
+    #     print("✅ category prepended")
 
 
     if text:
@@ -295,8 +296,12 @@ async def save_album_delay(media_group_id, msg_link, delay=3):
 #         await create_log("error", error_msg)
 #         print(error_msg)
 
-@app.on_message(groups_filter)
+@app.on_message()
 async def parse_handler(client, message: Message):
+    groups_ids = await get_group_ids()
+
+    if message.chat.id not in groups_ids:
+        return
     try:
         print("\n================ NEW MESSAGE ================") # ЛОГ
         print(f"📩 msg_id={message.id}")
@@ -358,15 +363,15 @@ async def parse_handler(client, message: Message):
         text = extract_text(message)
         print(f"📝 extracted_text_len={len(text)}") # ЛОГ
 
-        categories = await get_categories()
-        print(f"📚 categories loaded = {len(categories)}")
-
-        category = detect_category(text, categories)
-        print(f"🏷 detect_category RESULT = {category}")
-
-        if category != "Другое":
-            text = f"<b>[{category}]</b>\n\n" + text
-            print("✅ category prepended (single)")
+        # categories = await get_categories()
+        # print(f"📚 categories loaded = {len(categories)}")
+        #
+        # category = detect_category(text, categories)
+        # print(f"🏷 detect_category RESULT = {category}")
+        #
+        # if category != "Другое":
+        #     text = f"<b>[{category}]</b>\n\n" + text
+        #     print("✅ category prepended (single)")
 
         if text and any(word in text.lower() for word in STOP_WORDS):
             print("⛔ STOP WORD MATCH (single message)")     # ЛОГ

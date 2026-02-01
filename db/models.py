@@ -42,6 +42,15 @@ class Log(Base):
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)  # parsing, publishing, error
     message: Mapped[str] = mapped_column(String, nullable=False)
 
+class Group(Base):
+    __tablename__ = "groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    group_id: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String)
+    username: Mapped[str] = mapped_column(String)
+    url: Mapped[str] = mapped_column(String)
+
 
 
 async def create_session():

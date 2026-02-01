@@ -8,6 +8,7 @@ from aiogram.fsm.context import FSMContext
 from bot.config import tg_id_list
 from db.crud.categories import save_category, get_category_by_id, get_categories, delete_category_from_db, \
     update_category_keywords
+from db.crud.groups import insert_group, get_groups, delete_group
 
 router = Router()
 
@@ -21,6 +22,9 @@ async def start(message: Message):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(text='Категории', callback_data='categories')
+                ],
+                [
+                    InlineKeyboardButton(text='Группы', callback_data='groups')
                 ]
             ]
         )
@@ -39,6 +43,9 @@ async def menu(callback: CallbackQuery, state: FSMContext):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(text='Категории', callback_data='categories')
+                ],
+                [
+                    InlineKeyboardButton(text='Группы', callback_data='groups')
                 ]
             ]
         )
@@ -285,6 +292,167 @@ async def delete_category_final(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data == "cancel_delete")
+async def delete_category_cancel(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer("❌ Удаление отменено")
+    await state.clear()
+    await callback.answer()
+
+
+
+#ГРУППЫ
+
+@router.callback_query(F.data == 'groups')
+async def groups_handler(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text='Добавить группу', callback_data='add_group'),
+                InlineKeyboardButton(text='Удалить группу', callback_data='remove_group')
+            ],
+            [
+                InlineKeyboardButton(text='В главное меню', callback_data='main')
+            ]
+        ]
+    )
+
+    await callback.message.edit_text('Выберите действие: ', reply_markup=keyboard)
+
+class AddGroup(StatesGroup):
+    id_ = State()
+    name = State()
+    url = State()
+
+
+@router.callback_query(F.data == 'add_group')
+async def add_group(callback: CallbackQuery, state: FSMContext):
+    await callback.message.edit_text('Введите ID группы')
+
+    await state.set_state(AddGroup.id_)
+
+@router.message(AddGroup.id_)
+async def add_group_id(message: Message, state: FSMContext):
+    group_id = message.text
+
+    await state.update_data(group_id=group_id)
+
+    await state.set_state(AddGroup.name)
+
+    await message.answer("Введите название группы")
+
+@router.message(AddGroup.name)
+async def add_group_name(message: Message, state: FSMContext):
+    group_name = message.text
+
+    await state.update_data(group_name=group_name)
+
+    await state.set_state(AddGroup.url)
+
+    await message.answer("Введите ссылку группы")
+
+@router.message(AddGroup.url)
+async def add_group_url(message: Message, state: FSMContext):
+    group_url = message.text
+
+    data = await state.get_data()
+
+    group_id = data['group_id']
+    group_name = data['group_name']
+    group_username = group_url.split('/')[-1]
+    if group_url.startswith('t'):
+        group_url = 'https://' + group_url
+
+    group_info = {
+        'group_id': int(group_id),
+        'name': str(group_name),
+        'username': str(group_username),
+        'url': str(group_url)
+    }
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text='В главное меню', callback_data='main')
+            ]
+        ]
+    )
+
+    await insert_group(group_info)
+
+    await state.clear()
+
+    await message.answer('Группа успешно добавлена!', reply_markup=keyboard)
+
+
+
+
+@router.callback_query(F.data == 'remove_group')
+async def remove_group(callback: CallbackQuery):
+    groups = await get_groups()
+
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[]
+    )
+
+    for group in groups:
+        keyboard.inline_keyboard.append(
+            [
+                InlineKeyboardButton(text=group.name, callback_data=f'group_for_remove-{group.id}')
+            ]
+        )
+
+    keyboard.inline_keyboard.append(
+        [
+            InlineKeyboardButton(text='В главное меню', callback_data='main')
+        ]
+    )
+
+    await callback.message.edit_text('Выберите группу для удаления', reply_markup=keyboard)
+
+@router.callback_query(F.data.startswith("group_for_remove"))
+async def delete_category_confirm(callback: CallbackQuery, state: FSMContext):
+    group_id = int(callback.data.split("-")[1])
+
+
+
+
+
+
+
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"group_confirm_delete-{group_id}")],
+        [InlineKeyboardButton(text="❌ Нет, отмена", callback_data=f"group_cancel_delete")]
+    ])
+
+    await callback.message.answer(
+        f"⚠️ Вы уверены, что хотите удалить группу??\n\n",
+        reply_markup=keyboard,
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.split('-')[0] == "group_confirm_delete")
+async def delete_category_final(callback: CallbackQuery, state: FSMContext):
+    group_id = callback.data.split('-')[1]
+
+
+    await delete_group(int(group_id))
+
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏠 В главное меню", callback_data="main")]
+    ])
+
+    await callback.message.answer(
+        f"✅ Группа удалена!",
+        reply_markup=keyboard
+    )
+    await state.clear()
+    await callback.answer()
+
+
+@router.callback_query(F.data.split('-')[0] == "group_cancel_delete")
 async def delete_category_cancel(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("❌ Удаление отменено")
     await state.clear()

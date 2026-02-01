@@ -1,3 +1,9 @@
+import asyncio
+
+from db.crud.groups import get_groups
+from db.models import async_session, Group
+
+
 GROUPS = {
     -1001803559312: {
         "name": "Краснодар Объявления",
@@ -44,6 +50,13 @@ GROUPS = {
     }
 }
 
+async def get_all_groups():
+    groups = await get_groups()
+    return groups
+
+
+
+
 
 SUPERGROUPS_WITH_TOPICS = {
     # Пример супергруппы с топиками:
@@ -69,21 +82,25 @@ SUPERGROUPS = {
     }
 }
 
-ALL_CHANNELS = {**GROUPS, **SUPERGROUPS_WITH_TOPICS, **SUPERGROUPS}
-ALL_CHANNEL_IDS = list(ALL_CHANNELS.keys())
+# ALL_CHANNELS = {**GROUPS, **SUPERGROUPS_WITH_TOPICS, **SUPERGROUPS}
+# ALL_CHANNEL_IDS = list(ALL_CHANNELS.keys())
+#
+#
+# CHANNELS_WITH_TOPICS_IDS = [
+#     channel_id for channel_id, info in ALL_CHANNELS.items()
+#     if info.get("has_topics", False)
+# ]
+#
+# def get_channel_info(channel_id: int) -> dict:
+#     """Получить информацию о канале по его ID"""
+#     return ALL_CHANNELS.get(channel_id, {
+#         "name": "Неизвестный канал",
+#         "username": None,
+#         "link": None,
+#         "has_topics": False,
+#         "topics": []
+#     })
 
 
-CHANNELS_WITH_TOPICS_IDS = [
-    channel_id for channel_id, info in ALL_CHANNELS.items()
-    if info.get("has_topics", False)
-]
 
-def get_channel_info(channel_id: int) -> dict:
-    """Получить информацию о канале по его ID"""
-    return ALL_CHANNELS.get(channel_id, {
-        "name": "Неизвестный канал",
-        "username": None,
-        "link": None,
-        "has_topics": False,
-        "topics": []
-    })
+
