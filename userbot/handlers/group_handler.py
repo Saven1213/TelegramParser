@@ -394,7 +394,7 @@ async def parse_handler(client, message: Message):
                 print("⛔ STOP WORD MATCH (single message)")     # ЛОГ
                 return
 
-            text += f'\n\n<a href="{msg_link}">Источник</a>'
+            text += f'\n\n{msg_link}'
 
 
 
