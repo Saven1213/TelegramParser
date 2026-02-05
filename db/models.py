@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Boolean, Float, DateTime
+from sqlalchemy import String, Integer, Boolean, Float, DateTime, BigInteger
 from sqlalchemy.orm import DeclarativeBase,Mapped, mapped_column
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from typing import Optional
@@ -49,7 +49,23 @@ class Group(Base):
     group_id: Mapped[int] = mapped_column(Integer)
     name: Mapped[str] = mapped_column(String)
     username: Mapped[str] = mapped_column(String)
+    district: Mapped[str] = mapped_column(String)
     url: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    city: Mapped[str] = mapped_column(String)
+
+class LavandaGroup(Base):
+    __tablename__ = 'target_groups'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    group_id: Mapped[int] = mapped_column(BigInteger)
+
+    district: Mapped[str] = mapped_column(String)
+
+
+
+
 
 
 

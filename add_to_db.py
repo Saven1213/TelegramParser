@@ -71,6 +71,10 @@ async def import_groups_from_dict(groups_dict: dict):
                 name=data.get("name"),
                 username=data.get("username"),
                 url=data.get("link"),
+                district='Краснодарский край',
+                status='deactive',
+                city='Краснодар'
+
             )
 
             session.add(group)

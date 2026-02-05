@@ -1,4 +1,5 @@
 
+
 from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message, InlineKeyboardButton, InlineKeyboardMarkup
@@ -8,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from bot.config import tg_id_list
 from db.crud.categories import save_category, get_category_by_id, get_categories, delete_category_from_db, \
     update_category_keywords
-from db.crud.groups import insert_group, get_groups, delete_group
+from db.crud.groups import insert_group, get_groups, delete_group, change_status, get_group
 
 router = Router()
 
@@ -25,6 +26,9 @@ async def start(message: Message):
                 ],
                 [
                     InlineKeyboardButton(text='Группы', callback_data='groups')
+                ],
+                [
+                    InlineKeyboardButton(text='По каким городам работаем?', callback_data='district_change')
                 ]
             ]
         )
@@ -46,6 +50,9 @@ async def menu(callback: CallbackQuery, state: FSMContext):
                 ],
                 [
                     InlineKeyboardButton(text='Группы', callback_data='groups')
+                ],
+                [
+                    InlineKeyboardButton(text='По каким городам работаем?', callback_data='district_change')
                 ]
             ]
         )
@@ -301,8 +308,11 @@ async def delete_category_cancel(callback: CallbackQuery, state: FSMContext):
 
 #ГРУППЫ
 
+
 @router.callback_query(F.data == 'groups')
 async def groups_handler(callback: CallbackQuery):
+
+
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -321,6 +331,8 @@ class AddGroup(StatesGroup):
     id_ = State()
     name = State()
     url = State()
+    district = State()
+    city = State()
 
 
 @router.callback_query(F.data == 'add_group')
@@ -345,9 +357,33 @@ async def add_group_name(message: Message, state: FSMContext):
 
     await state.update_data(group_name=group_name)
 
-    await state.set_state(AddGroup.url)
+    await state.set_state(AddGroup.district)
+
+    await message.answer("Введите край/область\n\nпример: Московская область, Краснодарский край")
+
+@router.message(AddGroup.district)
+async def add_district(message: Message, state: FSMContext):
+    district = message.text
+
+    await state.update_data(district=district)
+
+    await message.answer("Введите город")
+
+    await state.set_state(AddGroup.city)
+
+@router.message(AddGroup.city)
+async def add_city(message: Message, state: FSMContext):
+    city = message.text.lower()
+
+    await state.update_data(city=city)
+
+
 
     await message.answer("Введите ссылку группы")
+
+    await state.set_state(AddGroup.url)
+
+
 
 @router.message(AddGroup.url)
 async def add_group_url(message: Message, state: FSMContext):
@@ -361,11 +397,17 @@ async def add_group_url(message: Message, state: FSMContext):
     if group_url.startswith('t'):
         group_url = 'https://' + group_url
 
+    group_district = data.get('district')
+    city = data.get('city').lower()
+
+
     group_info = {
         'group_id': int(group_id),
         'name': str(group_name),
         'username': str(group_username),
-        'url': str(group_url)
+        'url': str(group_url),
+        'district': group_district,
+        'city': city
     }
 
     keyboard = InlineKeyboardMarkup(
@@ -457,4 +499,73 @@ async def delete_category_cancel(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("❌ Удаление отменено")
     await state.clear()
     await callback.answer()
+
+
+# РЕГИОНЫ ПАРСЕР
+
+@router.callback_query(F.data == 'district_change')
+async def district_change(callback: CallbackQuery):
+    districts = []
+
+    groups = await get_groups()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+
+        ]
+    )
+    if groups:
+        for group in groups:
+            if not group.district in districts:
+                districts.append(group.district)
+
+                keyboard.inline_keyboard.append(
+                    [
+                        InlineKeyboardButton(text=group.district, callback_data=f'district_parse-{group.id}')
+                    ]
+                )
+        keyboard.inline_keyboard.append(
+            [
+                InlineKeyboardButton(text='В главное меню', callback_data='main')
+            ]
+        )
+
+        await callback.message.edit_text('Выберите область', reply_markup=keyboard)
+
+    else:
+        await callback.message.edit_text('Пока ничего нет')
+
+@router.callback_query(F.data.split('-')[0] == 'district_parse')
+async def active_districts(callback: CallbackQuery):
+    data = callback.data.split('-')[1]
+
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Парсить", callback_data=f'groups_on-{data}')
+            ],
+            [
+                InlineKeyboardButton(text='В меню', callback_data='main')
+            ]
+        ]
+    )
+
+    await callback.message.edit_text('Тут вы можете включить группу для парсинга', reply_markup=keyboard)
+
+@router.callback_query(F.data.split('-')[0] == 'groups_on')
+async def groups_on(callback: CallbackQuery):
+    data = callback.data.split('-')[1]
+
+    group = await get_group(int(data))
+    district = group.district
+
+    await change_status(district)
+
+    await callback.message.edit_text(f'Отлично, будем парсить {district}, Капитан!')
+
+
+
+
+
 
