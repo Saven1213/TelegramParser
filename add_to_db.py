@@ -1,7 +1,7 @@
 import asyncio
 
 from sqlalchemy import select
-from db.models import async_session, Group
+from db.models import async_session, Group, LavandaGroup
 
 GROUPS = {
     -1001803559312: {
@@ -73,7 +73,7 @@ async def import_groups_from_dict(groups_dict: dict):
                 url=data.get("link"),
                 district='Краснодарский край',
                 status='deactive',
-                city='Краснодар'
+                city='краснодар'
 
             )
 
@@ -82,6 +82,19 @@ async def import_groups_from_dict(groups_dict: dict):
 
         await session.commit()
 
+async def add_target_group():
+    async with async_session() as session:
+
+        group = LavandaGroup(
+            group_id=-1003730216520,
+            district='Краснодарский край',
+            city='краснодар'
+        )
+
+        session.add(group)
+        await session.commit()
+
 asyncio.run(import_groups_from_dict(GROUPS))
+asyncio.run(add_target_group())
 
 

@@ -299,10 +299,12 @@ async def save_album_delay(media_group_id, msg_link, delay=3, group_id = 0):
 
 @app.on_message()
 async def parse_handler(client, message: Message):
-    groups_ids= await get_group_ids()
-
+    groups_ids = await get_group_ids()
+    print(groups_ids)
+    print(message.chat.id)
     if message.chat.id not in groups_ids:
         return
+
 
     try:
         print("\n================ NEW MESSAGE ================") # ЛОГ
@@ -339,6 +341,9 @@ async def parse_handler(client, message: Message):
         group = await get_group(message.chat.id)
 
         target_group = await get_target_group(group.city)
+
+        print(group)
+        print(target_group)
 
         if target_group:
             if message.media_group_id:
