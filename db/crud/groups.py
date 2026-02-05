@@ -62,9 +62,9 @@ async def change_status(district: str):
 
         await session.commit()
 
-async def get_group(id_):
+async def get_group(group_id):
     async with async_session() as session:
-        res = await session.execute(select(Group).where(Group.id == id_))
+        res = await session.execute(select(Group).where(Group.group_id == group_id))
 
         group = res.scalar_one_or_none()
 

@@ -63,6 +63,8 @@ class LavandaGroup(Base):
 
     district: Mapped[str] = mapped_column(String)
 
+    city: Mapped[str] = mapped_column(String)
+
 
 
 

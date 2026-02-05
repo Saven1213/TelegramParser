@@ -521,7 +521,7 @@ async def district_change(callback: CallbackQuery):
 
                 keyboard.inline_keyboard.append(
                     [
-                        InlineKeyboardButton(text=group.district, callback_data=f'district_parse-{group.id}')
+                        InlineKeyboardButton(text=group.district, callback_data=f'district_parse!{group.group_id}')
                     ]
                 )
         keyboard.inline_keyboard.append(
@@ -535,15 +535,15 @@ async def district_change(callback: CallbackQuery):
     else:
         await callback.message.edit_text('Пока ничего нет')
 
-@router.callback_query(F.data.split('-')[0] == 'district_parse')
+@router.callback_query(F.data.split('!')[0] == 'district_parse')
 async def active_districts(callback: CallbackQuery):
-    data = callback.data.split('-')[1]
+    data = callback.data.split('!')[1]
 
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Парсить", callback_data=f'groups_on-{data}')
+                InlineKeyboardButton(text="Парсить", callback_data=f'groups_on!{data}')
             ],
             [
                 InlineKeyboardButton(text='В меню', callback_data='main')
@@ -553,9 +553,9 @@ async def active_districts(callback: CallbackQuery):
 
     await callback.message.edit_text('Тут вы можете включить группу для парсинга', reply_markup=keyboard)
 
-@router.callback_query(F.data.split('-')[0] == 'groups_on')
+@router.callback_query(F.data.split('!')[0] == 'groups_on')
 async def groups_on(callback: CallbackQuery):
-    data = callback.data.split('-')[1]
+    data = callback.data.split('!')[1]
 
     group = await get_group(int(data))
     district = group.district
