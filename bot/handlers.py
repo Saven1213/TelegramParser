@@ -5,11 +5,13 @@ from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
+from pyrogram.filters import inline_keyboard
 
 from bot.config import tg_id_list
 from db.crud.categories import save_category, get_category_by_id, get_categories, delete_category_from_db, \
     update_category_keywords
 from db.crud.groups import insert_group, get_groups, delete_group, change_status, get_group
+from db.crud.lavanda_groups import add_target_group
 
 router = Router()
 
@@ -316,7 +318,7 @@ async def groups_handler(callback: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text='Добавить группу', callback_data='add_group'),
+                InlineKeyboardButton(text='Добавить группу', callback_data='choose_group'),
                 InlineKeyboardButton(text='Удалить группу', callback_data='remove_group')
             ],
             [
@@ -333,6 +335,72 @@ class AddGroup(StatesGroup):
     url = State()
     district = State()
     city = State()
+
+class AddTargetGroup(StatesGroup):
+    group_id = State()
+    district = State()
+    city = State()
+
+@router.callback_query(F.data == 'choose_group')
+async def choose_group(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text='Добавить группу города', callback_data='add_target_group')
+            ],
+            [
+                InlineKeyboardButton(text='Добавить группу парсинга', callback_data='add_group')
+            ]
+        ]
+    )
+
+    await callback.message.edit_text('Какую группу добавить?', reply_markup=keyboard)
+
+@router.callback_query(F.data == 'add_target_group')
+async def target_group(callback: CallbackQuery, state: FSMContext):
+
+    await callback.message.edit_text('Введите ID группы')
+
+    await state.set_state(AddTargetGroup.group_id)
+
+@router.message(AddTargetGroup.group_id)
+async def write_id(message: Message, state: FSMContext):
+    text = message.text
+
+    await state.update_data(group_id=text)
+
+    await message.answer('Введите регион\n\nПример: Краснодарский край, Московская область')
+
+    await state.set_state(AddTargetGroup.district)
+
+@router.message(AddTargetGroup.district)
+async def write_district(message: Message, state: FSMContext):
+    text = message.text
+
+    await state.update_data(district=text)
+
+    await message.answer('Введите город:')
+
+    await state.set_state(AddTargetGroup.city)
+
+@router.message(AddTargetGroup.city)
+async def write_city(message: Message, state: FSMContext):
+    city = message.text.lower()
+
+    data = await state.get_data()
+
+    group_id = int(data.get('group_id'))
+
+    district = data.get('district')
+
+    await add_target_group(group_id, district, city)
+
+    await message.answer(f'Отлично, вы добавили новую группу в город {city}')
+
+    await state.clear()
+
+
+
 
 
 @router.callback_query(F.data == 'add_group')
