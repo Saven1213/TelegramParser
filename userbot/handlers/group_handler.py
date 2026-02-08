@@ -1,7 +1,7 @@
 #
 from pyrogram import filters
 from pyrogram.types import Message
-
+import traceback
 from db.crud.categories import get_categories
 from db.crud.groups import get_group_ids, get_group
 from db.crud.lavanda_groups import get_target_group
@@ -299,24 +299,79 @@ async def save_album_delay(media_group_id, msg_link, delay=3, group_id = 0):
 
 @app.on_message()
 async def parse_handler(client, message: Message):
-    groups_ids = await get_group_ids()
-    print(groups_ids)
-    print(message.chat.id)
-    if message.chat.id not in groups_ids:
-        return
-
+    print(f"\n🔹 START HANDLER | Chat ID: {message.chat.id} | Message ID: {message.id}")
 
     try:
-        print("\n================ NEW MESSAGE ================") # ЛОГ
+        # 1. Получаем список групп
+        groups_ids = await get_group_ids()
+        print(f"📊 Available groups IDs: {groups_ids}")
+        print(f"🎯 Current chat ID: {message.chat.id}")
+        print(f"✅ Chat in allowed list: {message.chat.id in groups_ids}")
+
+        if message.chat.id not in groups_ids:
+            print("⏩ Skipping - chat not in allowed list")
+            return
+
+        print("\n" + "=" * 20 + " NEW MESSAGE " + "=" * 20)
         print(f"📩 msg_id={message.id}")
         print(f"📦 media_group_id={message.media_group_id}")
         print(f"🖼 photo={bool(message.photo)} video={bool(message.video)} doc={bool(message.document)}")
         print(f"📝 caption={bool(message.caption)} text={bool(message.text)}")
 
+        # 2. Получаем информацию о группе источника
+        print(f"\n🔍 Getting source group for chat ID: {message.chat.id}")
+        group = await get_group(message.chat.id)
+        print(f"📌 Source group: {group}")
+        if group:
+            print(f"🏙️ Source city: {group.city}")
+        else:
+            print("❌ Source group not found!")
+            return
+
+        # 3. Получаем целевую группу
+        print(f"\n🎯 Getting target group for city: {group.city}")
+        target_group = await get_target_group(group.city)
+        print(f"📌 Target group object: {target_group}")
+
+        if target_group:
+            print(f"✅ Target group found:")
+            print(f"   Name: {target_group.name}")
+            print(f"   Group ID: {target_group.group_id}")
+            print(f"   City: {target_group.city}")
+            print(f"   Type of group_id: {type(target_group.group_id)}")
+        else:
+            print("❌ Target group not found for this city!")
+            return
+
+        # 4. Проверяем валидность ID целевой группы
+        print(f"\n🔎 Validating target group ID: {target_group.group_id}")
+        if target_group.group_id is None:
+            print("❌ ERROR: target_group.group_id is None!")
+            return
+
+        if not isinstance(target_group.group_id, int):
+            print(f"❌ ERROR: group_id is not integer! Type: {type(target_group.group_id)}")
+            return
+
+        print(f"✅ Group ID is valid integer: {target_group.group_id}")
+
+        # 5. Проверяем доступ бота к целевой группе
+        print(f"\n🤖 Checking bot access to target group: {target_group.group_id}")
+        try:
+            chat_info = await client.get_chat(target_group.group_id)
+            print(f"✅ Bot has access to target group:")
+            print(f"   Title: {chat_info.title}")
+            print(f"   Type: {chat_info.type}")
+            print(f"   Username: {chat_info.username}")
+        except Exception as access_error:
+            print(f"❌ Bot has NO access to target group {target_group.group_id}: {access_error}")
+            print(f"⚠️  Make sure bot is added to this group as admin/member")
+            return
+
+        # -------- Формируем ссылку --------
         is_forum = message.chat.is_forum
         topic_id = message.message_thread_id
 
-        # -------- ссылка --------
         if message.chat.username:
             msg_link = (
                 f"https://t.me/{message.chat.username}/{topic_id}/{message.id}"
@@ -331,105 +386,128 @@ async def parse_handler(client, message: Message):
                 else f"https://t.me/c/{chat_id_abs}/{message.id}"
             )
 
-        print(f"🔗 link={msg_link}") # ЛОГ
+        print(f"🔗 Generated link: {msg_link}")
 
+        # -------- Обработка медиа-групп --------
+        if message.media_group_id:
+            print(f"\n📚 MESSAGE IS PART OF MEDIA GROUP: {message.media_group_id}")
 
+            if message.media_group_id not in albums_cache:
+                print("🆕 New album created in cache")
+                albums_cache[message.media_group_id] = {
+                    "messages": [],
+                    "saving": False
+                }
 
+            albums_cache[message.media_group_id]["messages"].append(message)
+            print(f"➕ Added to album | Total messages: {len(albums_cache[message.media_group_id]['messages'])}")
 
-        # -------- MEDIA GROUP --------
+            if not albums_cache[message.media_group_id]["saving"]:
+                print("⏳ Scheduling album save with delay")
+                albums_cache[message.media_group_id]["saving"] = True
+                asyncio.create_task(
+                    save_album_delay(
+                        message.media_group_id,
+                        msg_link,
+                        delay=3,
+                        group_id=target_group.group_id
+                    )
+                )
+            return
 
-        group = await get_group(message.chat.id)
+        # -------- ОДИНОЧНОЕ СООБЩЕНИЕ --------
+        print("\n📄 SINGLE MESSAGE PROCESSING")
 
-        target_group = await get_target_group(group.city)
+        text = extract_text(message)
+        print(f"📝 Extracted text length: {len(text)}")
+        print(f"📝 Text preview: {text[:100]}{'...' if len(text) > 100 else ''}")
 
-        if target_group:
-            if message.media_group_id:
-                print("📚 MESSAGE IS PART OF MEDIA GROUP") # ЛОГ
+        # Проверка стоп-слов
+        if text:
+            stop_words_found = [word for word in STOP_WORDS if word in text.lower()]
+            if stop_words_found:
+                print(f"⛔ STOP WORD MATCH: {stop_words_found}")
+                return
+            else:
+                print("✅ No stop words found")
 
-                if message.media_group_id not in albums_cache:
-                    print("🆕 new album created") # ЛОГ
-                    albums_cache[message.media_group_id] = {
-                        "messages": [],
-                        "saving": False
-                    }
+        text += f'\n\n{msg_link}'
 
-                albums_cache[message.media_group_id]["messages"].append(message)
-                print(  # ЛОГ
-                    f"➕ added to album | total={len(albums_cache[message.media_group_id]['messages'])}"
+        # -------- ОТПРАВКА В ЦЕЛЕВУЮ ГРУППУ --------
+        print(f"\n🚀 ATTEMPTING TO SEND TO TARGET GROUP: {target_group.group_id}")
+
+        try:
+            if message.photo:
+                print("📸 Processing PHOTO")
+                file = await message.download(in_memory=True)
+                print(f"✅ Photo downloaded, size: {len(file.getvalue()) if hasattr(file, 'getvalue') else 'N/A'}")
+                await client.send_photo(
+                    chat_id=target_group.group_id,
+                    photo=file,
+                    caption=text
+                )
+                print("✅ Photo sent successfully")
+                return
+
+            elif message.video:
+                print("🎬 Processing VIDEO")
+                file = await message.download(in_memory=True)
+                print(f"✅ Video downloaded")
+                await client.send_video(
+                    chat_id=target_group.group_id,
+                    video=file,
+                    caption=text
+                )
+                print("✅ Video sent successfully")
+                return
+
+            elif message.document:
+                print("📄 Processing DOCUMENT")
+                file = await message.download(in_memory=True)
+                print(f"✅ Document downloaded")
+                await client.send_document(
+                    chat_id=target_group.group_id,
+                    document=file,
+                    caption=text
+                )
+                print("✅ Document sent successfully")
+                return
+
+            elif text:
+                print("📝 Processing TEXT MESSAGE")
+                print(f"📤 Sending text to {target_group.group_id}")
+                print(f"📄 Text to send: {text[:200]}...")
+
+                await client.send_message(
+                    chat_id=target_group.group_id,
+                    text=text
+                )
+                print("✅ Text message sent successfully")
+                return
+
+            else:
+                print("⚠️ FALLBACK: Unsupported message type")
+                await error(
+                    f"❌ Unsupported message type\n\n<a href='{msg_link}'>Message link</a>",
+                    error_chat
                 )
 
-                if not albums_cache[message.media_group_id]["saving"]:
-                    print("⏳ scheduling album save")
-                    albums_cache[message.media_group_id]["saving"] = True
-                    asyncio.create_task(
-                        save_album_delay(
-                            message.media_group_id,
-                            msg_link,
-                            delay=3,
-                            group_id=target_group.group_id
-                        )
-                    )
-                return
-
-            # -------- ОДИНОЧНОЕ --------
-            print("📄 SINGLE MESSAGE") # ЛОГ
-
-            text = extract_text(message)
-            print(f"📝 extracted_text_len={len(text)}") # ЛОГ
-
-            # categories = await get_categories()
-            # print(f"📚 categories loaded = {len(categories)}")
-            #
-            # category = detect_category(text, categories)
-            # print(f"🏷 detect_category RESULT = {category}")
-            #
-            # if category != "Другое":
-            #     text = f"<b>[{category}]</b>\n\n" + text
-            #     print("✅ category prepended (single)")
-
-            if text and any(word in text.lower() for word in STOP_WORDS):
-                print("⛔ STOP WORD MATCH (single message)")     # ЛОГ
-                return
-
-            text += f'\n\n{msg_link}'
-
-
-
-
-
-            if message.photo:
-                print("🚀 send PHOTO")   # ЛОГ
-                file = await message.download(in_memory=True)
-
-                await app.send_photo(chat_id=target_group.group_id, photo=file, caption=text)
-                return
-
-            if message.video:
-                print("🚀 send VIDEO")   # ЛОГ
-                file = await message.download(in_memory=True)
-                await app.send_video(chat_id=target_group.group_id, video=file, caption=text)
-                return
-
-            if message.document:
-                print("🚀 send DOCUMENT")    # ЛОГ
-                file = await message.download(in_memory=True)
-                await app.send_document(chat_id=target_group.group_id, document=file, caption=text)
-                return
-
-            if text:
-                print("🚀 send TEXT")    # ЛОГ
-                await app.send_message(chat_id=target_group.group_id, text=text)
-                return
-
-            print("⚠️ FALLBACK triggered")  # ЛОГ
-            await error(
-                f"❌ неподдерживаемый тип сообщения\n\n<a href='{msg_link}'>Сообщение</a>",
-                error_chat
-            )
+        except Exception as send_error:
+            print(f"❌ ERROR SENDING TO TARGET GROUP {target_group.group_id}:")
+            print(f"   Error type: {type(send_error).__name__}")
+            print(f"   Error message: {str(send_error)}")
+            print(f"   Target group ID: {target_group.group_id}")
+            print(f"   Target group name: {target_group.name}")
+            raise send_error  # Перебрасываем ошибку в общий обработчик
 
     except Exception as e:
-        print("🔥 EXCEPTION:", e)
-        await error(str(e), error_chat)
+        print("\n" + "🔥" * 20 + " UNHANDLED EXCEPTION " + "🔥" * 20)
+        print(f"❌ Exception type: {type(e).__name__}")
+        print(f"❌ Exception message: {str(e)}")
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        print("🔥" * 50)
+
+        await error(f"Handler error: {str(e)}", error_chat)
 
 
 
