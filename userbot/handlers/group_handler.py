@@ -148,7 +148,7 @@ async def save_album_delay(media_group_id, msg_link, delay=3, group_id = 0):
 
 
     if text:
-        text += f'\n\n<a href="{msg_link}">Источник</a>'
+        text += f'\n\n{msg_link}'
 
     print(f"🧾 FINAL caption len={len(text)}")
 
@@ -341,9 +341,6 @@ async def parse_handler(client, message: Message):
         group = await get_group(message.chat.id)
 
         target_group = await get_target_group(group.city)
-
-        print(group)
-        print(target_group)
 
         if target_group:
             if message.media_group_id:
