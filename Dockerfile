@@ -2,9 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# gcc is needed to build TgCrypto if no prebuilt wheel matches this platform/Python combo
+# build-essential (gcc + libc headers) is needed to build TgCrypto if no
+# prebuilt wheel matches this platform/Python combo
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc \
+    && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 COPY req.txt .
