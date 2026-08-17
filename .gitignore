@@ -2,3 +2,6 @@
 tg_parser.db
 sessions/
 bot/config.py
+
+*.pyc
+__pycache__/

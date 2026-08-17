@@ -1,5 +1,3 @@
-from msilib.text import dirname
-
 from pyrogram import Client
 
 import os
