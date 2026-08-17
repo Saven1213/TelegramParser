@@ -4,7 +4,6 @@ from logging import Logger
 from pyrogram import filters, idle
 import logging
 
-from userbot.handlers.group_handler import chat_id
 from db.models import create_session
 from pyrogram import filters
 
