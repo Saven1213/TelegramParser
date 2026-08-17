@@ -28,14 +28,6 @@ error_chat = int(os.getenv("ERROR_CHAT"))
 
 logger = logging.getLogger(__name__)
 
-
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-chat_id = int(os.getenv("MAIN_CHAT"))
-
 group_ids = list(GROUPS.keys())
 groups_filter = filters.chat(group_ids)
 
@@ -57,42 +49,6 @@ def extract_text(message: Message) -> str:
 
 
 
-
-async def save_album_after_delay(media_group_id, msg_link, delay=1): #Устаревшая функция
-    await asyncio.sleep(delay)
-
-    cache = albums_cache.get(media_group_id)
-    if not cache:
-        return
-
-    media_files = []
-    text = ""
-
-    for i, msg in enumerate(cache["messages"]):
-
-        if i == 0:
-            text = msg.caption or msg.text or ""
-            text += f'\n\n<a href="{msg_link}">Источник</a>'
-
-        file = await msg.download(in_memory=True)
-
-        media_files.append({
-            "type": (
-                "photo" if msg.photo else
-                "video" if msg.video else
-                "document"
-            ),
-            "file": file
-        })
-
-    post_data = {
-        "text": text,
-        "media": media_files
-    }
-
-    await send_post_channel(app, chat_id, post_data)
-
-    del albums_cache[media_group_id]
 
 from pyrogram.types import (
     InputMediaPhoto,
